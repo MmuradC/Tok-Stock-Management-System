@@ -19,10 +19,24 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Yeni Ürün Ekle - Tok-Stock</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand':        '#8A5F41',
+              'brand-mid':    '#A77F60',
+              'brand-light':  '#F3E4C9',
+              'brand-accent': '#CCD67F',
+            }
+          }
+        }
+      }
+    </script>
 </head>
-<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+<body class="bg-brand-light font-sans leading-normal tracking-normal">
 
-    <nav class="bg-blue-800 p-4 shadow-md">
+    <nav class="bg-brand p-4 shadow-md">
         <div class="container mx-auto flex justify-between items-center">
             <a href="index.php" class="text-white text-xl font-bold">Tok-Stock Yönetimi</a>
             <div class="text-white">
@@ -100,7 +114,7 @@ try {
                 </div>
 
                 <div class="flex items-center justify-between">
-                    <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full" type="submit">
+                    <button class="bg-brand hover:bg-brand-mid text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full" type="submit">
                         Ürünü Kaydet
                     </button>
                 </div>

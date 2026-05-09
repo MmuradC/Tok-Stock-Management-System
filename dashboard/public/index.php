@@ -22,10 +22,24 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tok-Stock Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand':        '#8A5F41',
+              'brand-mid':    '#A77F60',
+              'brand-light':  '#F3E4C9',
+              'brand-accent': '#CCD67F',
+            }
+          }
+        }
+      }
+    </script>
 </head>
-<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+<body class="bg-brand-light font-sans leading-normal tracking-normal">
 
-    <nav class="bg-blue-800 p-4 shadow-md">
+    <nav class="bg-brand p-4 shadow-md">
         <div class="container mx-auto flex justify-between items-center">
             <a href="#" class="text-white text-xl font-bold">Tok-Stock Yönetimi</a>
             <div class="text-white">
@@ -41,15 +55,15 @@ try {
             <h1 class="text-2xl font-bold text-gray-800">Ürün Envanteri</h1>
             <div class="flex flex-wrap items-center gap-2">
                 <form action="import_csv.php" method="POST" enctype="multipart/form-data" class="flex items-center gap-2 bg-white p-2 border rounded shadow-sm">
-                    <input type="file" name="csv_file" accept=".csv" required class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                    <button type="submit" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded text-sm shadow">
+                    <input type="file" name="csv_file" accept=".csv" required class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-brand-light file:text-brand hover:file:bg-brand-mid hover:file:text-white">
+                    <button type="submit" class="bg-brand hover:bg-brand-mid text-white font-bold py-2 px-4 rounded text-sm shadow">
                         İçe Aktar (CSV)
                     </button>
                 </form>
-                <a href="export_csv.php" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow text-sm">
+                <a href="export_csv.php" class="bg-brand-accent hover:bg-brand-mid text-brand hover:text-white font-bold py-2 px-4 rounded shadow text-sm">
                     Dışa Aktar (CSV)
                 </a>
-                <a href="add_product.php" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow text-sm">
+                <a href="add_product.php" class="bg-brand hover:bg-brand-mid text-white font-bold py-2 px-4 rounded shadow text-sm">
                     + Yeni Ürün
                 </a>
             </div>
@@ -96,12 +110,12 @@ try {
                 <table class="text-left w-full border-collapse">
                     <thead>
                         <tr>
-                            <th class="py-4 px-6 bg-gray-50 font-bold uppercase text-sm text-gray-600 border-b border-gray-200">SKU</th>
-                            <th class="py-4 px-6 bg-gray-50 font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Ürün Adı</th>
-                            <th class="py-4 px-6 bg-gray-50 font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Kategori</th>
-                            <th class="py-4 px-6 bg-gray-50 font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Stok</th>
-                            <th class="py-4 px-6 bg-gray-50 font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Fiyat (Satış)</th>
-                            <th class="py-4 px-6 bg-gray-50 font-bold uppercase text-sm text-gray-600 border-b border-gray-200">İşlemler</th>
+                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">SKU</th>
+                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Ürün Adı</th>
+                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Kategori</th>
+                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Stok</th>
+                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Fiyat (Satış)</th>
+                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">İşlemler</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -113,18 +127,18 @@ try {
                             </tr>
                         <?php else: ?>
                             <?php foreach ($products as $product): ?>
-                                <tr class="hover:bg-gray-50">
+                                <tr class="hover:bg-brand-light">
                                     <td class="py-4 px-6 border-b border-gray-200"><?= htmlspecialchars($product['sku']) ?></td>
                                     <td class="py-4 px-6 border-b border-gray-200 font-semibold text-gray-800"><?= htmlspecialchars($product['name']) ?></td>
                                     <td class="py-4 px-6 border-b border-gray-200 text-gray-600"><?= htmlspecialchars($product['category_name'] ?? 'Kategorisiz') ?></td>
                                     <td class="py-4 px-6 border-b border-gray-200">
-                                        <span class="<?= $product['stock_quantity'] <= $product['min_stock_level'] ? 'text-red-600 font-bold' : 'text-green-600' ?>">
+                                        <span class="<?= $product['stock_quantity'] <= $product['min_stock_level'] ? 'text-red-600 font-bold' : 'text-brand-accent font-semibold' ?>">
                                             <?= htmlspecialchars($product['stock_quantity']) ?>
                                         </span>
                                     </td>
                                     <td class="py-4 px-6 border-b border-gray-200"><?= htmlspecialchars(number_format($product['price_sale'], 2)) ?> ₺</td>
                                     <td class="py-4 px-6 border-b border-gray-200">
-                                        <a href="edit_product.php?id=<?= $product['id'] ?>" class="text-blue-500 hover:text-blue-700 mr-2">Düzenle</a>
+                                        <a href="edit_product.php?id=<?= $product['id'] ?>" class="text-brand hover:text-brand-mid mr-2">Düzenle</a>
                                         <a href="process_product.php?action=delete&id=<?= $product['id'] ?>" onclick="return confirm('Bu ürünü silmek istediğinize emin misiniz?');" class="text-red-500 hover:text-red-700">Sil</a>
                                     </td>
                                 </tr>
