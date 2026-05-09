@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # NGINX Reverse Proxy & Web Server
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./dashboard/public:/var/www/html/dashboard:ro
+      - ./docker/nginx:/etc/nginx/conf.d:ro
+    depends_on:
+      - php-fpm
+      - owncloud
+      - osticket
+      - zencart
+    networks:
+      - frontend_network
+
+  # PHP-FPM for Custom Dashboard
+  php-fpm:
+    image: php:8.2-fpm-alpine
+    volumes:
+      - ./dashboard:/var/www/html/dashboard
+    networks:
+      - backend_network
+      - frontend_network
+
+  # MariaDB Database Server
+  mariadb:
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - backend_network
+
+  # OwnCloud (Private Cloud Storage)
+  owncloud:
+    image: owncloud/server:latest
+    environment:
+      - OWNCLOUD_DB_TYPE=mysql
+      - OWNCLOUD_DB_NAME=owncloud_db
+      - OWNCLOUD_DB_USERNAME=${DB_USER}
+      - OWNCLOUD_DB_PASSWORD=${DB_PASSWORD}
+      - OWNCLOUD_DB_HOST=mariadb
+      - OWNCLOUD_DOMAIN=cloud.firma.lan
+    volumes:
+      - owncloud_data:/mnt/data
+    networks:
+      - frontend_network
+      - backend_network
+    depends_on:
+      - mariadb
+
+  # osTicket (Customer Support)
+  osticket:
+    image: solidnerd/osticket:1.17
+    environment:
+      - MYSQL_HOST=mariadb
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=osticket_db
+    networks:
+      - frontend_network
+      - backend_network
+    depends_on:
+      - mariadb
+
+  # Zen Cart (E-Commerce & Inventory)
+  zencart:
+    # Vanilla PHP+Apache image as a base for ZenCart setup
+    image: php:8.1-apache
+    volumes:
+      - ./zencart:/var/www/html
+    networks:
+      - frontend_network
+      - backend_network
+    depends_on:
+      - mariadb
+
+networks:
+  frontend_network:
+    driver: bridge
+  backend_network:
+    driver: bridge
+
+volumes:
+  mariadb_data:
+  owncloud_data:
