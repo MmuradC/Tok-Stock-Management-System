@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # NGINX Reverse Proxy & Web Server
   nginx:
@@ -20,7 +18,9 @@ services:
 
   # PHP-FPM for Custom Dashboard
   php-fpm:
-    image: php:8.2-fpm-alpine
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile-fpm
     volumes:
       - ./dashboard:/var/www/html/dashboard
     networks:
@@ -61,12 +61,13 @@ services:
 
   # osTicket (Customer Support)
   osticket:
-    image: solidnerd/osticket:1.17
+    image: devinsolutions/osticket:1.17.5
     environment:
       - MYSQL_HOST=mariadb
       - MYSQL_USER=${DB_USER}
       - MYSQL_PASSWORD=${DB_PASSWORD}
       - MYSQL_DATABASE=osticket_db
+      - INSTALL_SECRET=${OSTICKET_INSTALL_SECRET:-secret_placeholder}
     networks:
       - frontend_network
       - backend_network
@@ -76,7 +77,9 @@ services:
   # Zen Cart (E-Commerce & Inventory)
   zencart:
     # Vanilla PHP+Apache image as a base for ZenCart setup
-    image: php:8.1-apache
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile-apache
     volumes:
       - ./zencart:/var/www/html
     networks:
