@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(winget *)"
+      "Bash(winget *)",
+      "Bash(docker exec stockmanagementproject-mariadb-1 *)",
+      "PowerShell(docker exec stockmanagementproject-mariadb-1 *)"
     ]
   }
 }

@@ -9,10 +9,10 @@ class Database {
 
     public static function getConnection(): PDO {
         if (self::$instance === null) {
-            $host = getenv('DB_HOST') ?: 'mariadb';
-            $db   = getenv('MYSQL_DATABASE') ?: 'tok_stock_db';
-            $user = getenv('MYSQL_USER') ?: 'tok_admin';
-            $pass = getenv('MYSQL_PASSWORD') ?: 'tok_password';
+            $host    = getenv('DB_HOST')     ?: 'mariadb';
+            $db      = getenv('DB_NAME')     ?: 'tok_stock_db';
+            $user    = getenv('DB_USER')     ?: 'tok_admin';
+            $pass    = getenv('DB_PASSWORD') ?: 'tok_password';
             $charset = 'utf8mb4';
 
             $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
@@ -25,8 +25,7 @@ class Database {
             try {
                 self::$instance = new PDO($dsn, $user, $pass, $options);
             } catch (PDOException $e) {
-                // In production, log the error instead of displaying it.
-                die("Veritabanı Bağlantı Hatası: " . $e->getMessage());
+                throw new \RuntimeException('Database connection failed: ' . $e->getMessage());
             }
         }
 

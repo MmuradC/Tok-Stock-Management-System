@@ -1,175 +1,229 @@
 <?php
-// Geçici Autoloader (Composer kullanana kadar)
-require_once __DIR__ . '/../src/Database.php';
+require_once __DIR__ . '/auth_check.php';
 require_once __DIR__ . '/../src/ProductService.php';
 
-use TokStock\ProductService;
+use TokStock\Database;
 
-$error = null;
-$products = [];
+$pageTitle   = 'Dashboard';
+$currentPage = 'dashboard';
+
+// ── Summary stats ──────────────────────────────────────────
+$db          = Database::getConnection();
+$companyFilter = $companyId ? 'WHERE company_id = :cid' : '';
+$params        = $companyId ? ['cid' => $companyId] : [];
 
 try {
-    $productService = new ProductService();
-    $products = $productService->getAllProducts();
+    // Total products
+    $stmt = $db->prepare("SELECT COUNT(*) FROM products $companyFilter");
+    $stmt->execute($params);
+    $totalProducts = (int)$stmt->fetchColumn();
+
+    // Low stock (stock_quantity <= min_stock_level)
+    $lowStockSql = $companyId
+        ? "SELECT COUNT(*) FROM products WHERE company_id = :cid AND stock_quantity <= min_stock_level"
+        : "SELECT COUNT(*) FROM products WHERE stock_quantity <= min_stock_level";
+    $stmt = $db->prepare($lowStockSql);
+    $stmt->execute($params);
+    $lowStock = (int)$stmt->fetchColumn();
+
+    // Today's orders
+    $todayOrdersSql = $companyId
+        ? "SELECT COUNT(*) FROM orders WHERE company_id = :cid AND DATE(created_at) = CURDATE()"
+        : "SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURDATE()";
+    $stmt = $db->prepare($todayOrdersSql);
+    $stmt->execute($params);
+    $todayOrders = (int)$stmt->fetchColumn();
+
+    // Pending orders
+    $pendingOrdersSql = $companyId
+        ? "SELECT COUNT(*) FROM orders WHERE company_id = :cid AND status = 'pending'"
+        : "SELECT COUNT(*) FROM orders WHERE status = 'pending'";
+    $stmt = $db->prepare($pendingOrdersSql);
+    $stmt->execute($params);
+    $pendingOrders = (int)$stmt->fetchColumn();
+
+    // Recent stock movements (last 8)
+    $recentSql = $companyId
+        ? "SELECT sl.action_type, sl.change_amount, sl.created_at, sl.notes,
+                  p.name AS product_name, p.sku,
+                  u.name AS user_name
+           FROM stock_logs sl
+           JOIN products p ON sl.product_id = p.id
+           LEFT JOIN users u ON sl.user_id = u.id
+           WHERE sl.company_id = :cid
+           ORDER BY sl.created_at DESC LIMIT 8"
+        : "SELECT sl.action_type, sl.change_amount, sl.created_at, sl.notes,
+                  p.name AS product_name, p.sku,
+                  u.name AS user_name
+           FROM stock_logs sl
+           JOIN products p ON sl.product_id = p.id
+           LEFT JOIN users u ON sl.user_id = u.id
+           ORDER BY sl.created_at DESC LIMIT 8";
+    $stmt = $db->prepare($recentSql);
+    $stmt->execute($params);
+    $recentMovements = $stmt->fetchAll();
+
+    // Low stock items list (up to 5)
+    $lowItemsSql = $companyId
+        ? "SELECT sku, name, stock_quantity, min_stock_level FROM products
+           WHERE company_id = :cid AND stock_quantity <= min_stock_level
+           ORDER BY stock_quantity ASC LIMIT 5"
+        : "SELECT sku, name, stock_quantity, min_stock_level FROM products
+           WHERE stock_quantity <= min_stock_level
+           ORDER BY stock_quantity ASC LIMIT 5";
+    $stmt = $db->prepare($lowItemsSql);
+    $stmt->execute($params);
+    $lowStockItems = $stmt->fetchAll();
+
 } catch (\Exception $e) {
-    $error = "Veritabanı bağlantısı kurulamadı. (Hata: " . $e->getMessage() . ") Lütfen Docker servislerinin çalıştığından emin olun.";
+    $totalProducts   = $lowStock = $todayOrders = $pendingOrders = 0;
+    $recentMovements = $lowStockItems = [];
+    $dbError = $e->getMessage();
 }
 ?>
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tok-Stock Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              'brand':        '#8A5F41',
-              'brand-mid':    '#A77F60',
-              'brand-light':  '#F3E4C9',
-              'brand-accent': '#CCD67F',
-            }
-          }
-        }
-      }
-    </script>
-</head>
-<body class="bg-brand-light font-sans leading-normal tracking-normal">
+<?php require_once __DIR__ . '/../src/layout/head.php'; ?>
+<?php require_once __DIR__ . '/../src/layout/sidebar.php'; ?>
+<?php require_once __DIR__ . '/../src/layout/topbar.php'; ?>
 
-    <nav class="bg-brand p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
-            <a href="#" class="text-white text-xl font-bold">Tok-Stock Yönetimi</a>
-            <div class="text-white">
-                <a href="#" class="px-3 hover:text-gray-300">Dashboard</a>
-                <a href="#" class="px-3 hover:text-gray-300">Ürünler</a>
-                <a href="#" class="px-3 hover:text-gray-300">Ayarlar</a>
-            </div>
+<?php if (isset($dbError)): ?>
+<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
+    <strong>Database error:</strong> <?= htmlspecialchars($dbError) ?>
+</div>
+<?php endif; ?>
+
+<!-- Summary cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+
+    <!-- Total Products -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
+        <div class="w-12 h-12 bg-brand-light rounded-xl flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>
         </div>
-    </nav>
-
-    <div class="container mx-auto mt-8 px-4">
-        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h1 class="text-2xl font-bold text-gray-800">Ürün Envanteri</h1>
-            <div class="flex flex-wrap items-center gap-2">
-                <form action="import_csv.php" method="POST" enctype="multipart/form-data" class="flex items-center gap-2 bg-white p-2 border rounded shadow-sm">
-                    <input type="file" name="csv_file" accept=".csv" required class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-brand-light file:text-brand hover:file:bg-brand-mid hover:file:text-white">
-                    <button type="submit" class="bg-brand hover:bg-brand-mid text-white font-bold py-2 px-4 rounded text-sm shadow">
-                        İçe Aktar (CSV)
-                    </button>
-                </form>
-                <a href="export_csv.php" class="bg-brand-accent hover:bg-brand-mid text-brand hover:text-white font-bold py-2 px-4 rounded shadow text-sm">
-                    Dışa Aktar (CSV)
-                </a>
-                <a href="add_product.php" class="bg-brand hover:bg-brand-mid text-white font-bold py-2 px-4 rounded shadow text-sm">
-                    + Yeni Ürün
-                </a>
-            </div>
+        <div>
+            <p class="text-2xl font-bold text-gray-800"><?= $totalProducts ?></p>
+            <p class="text-sm text-gray-500">Total Products</p>
         </div>
-
-        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'created'): ?>
-            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline">Ürün başarıyla eklendi!</span>
-            </div>
-        <?php endif; ?>
-
-        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'updated'): ?>
-            <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline">Ürün başarıyla güncellendi!</span>
-            </div>
-        <?php endif; ?>
-
-        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'deleted'): ?>
-            <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline">Ürün başarıyla silindi!</span>
-            </div>
-        <?php endif; ?>
-
-        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'import_success'): ?>
-            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline">İçe aktarım tamamlandı. Başarılı: <?= htmlspecialchars($_GET['success'] ?? 0) ?>, Atlanan/Hatalı: <?= htmlspecialchars($_GET['skipped'] ?? 0) ?></span>
-            </div>
-        <?php endif; ?>
-
-        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'import_error'): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <strong class="font-bold">İçe Aktarım Hatası!</strong>
-                <span class="block sm:inline"><?= htmlspecialchars($_GET['detail'] ?? '') ?></span>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($error): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                <strong class="font-bold">Sistem Uyarısı!</strong>
-                <span class="block sm:inline"><?= htmlspecialchars($error) ?></span>
-            </div>
-        <?php else: ?>
-            <div class="bg-white shadow-md rounded my-6 overflow-x-auto">
-                <table class="text-left w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">SKU</th>
-                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Ürün Adı</th>
-                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Kategori</th>
-                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Stok</th>
-                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">Fiyat (Satış)</th>
-                            <th class="py-4 px-6 bg-brand-light font-bold uppercase text-sm text-gray-600 border-b border-gray-200">İşlemler</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($products)): ?>
-                            <tr>
-                                <td colspan="6" class="py-4 px-6 border-b border-gray-200 text-center text-gray-500">
-                                    Henüz ürün bulunmuyor.
-                                </td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($products as $product): ?>
-                                <tr class="hover:bg-brand-light">
-                                    <td class="py-4 px-6 border-b border-gray-200"><?= htmlspecialchars($product['sku']) ?></td>
-                                    <td class="py-4 px-6 border-b border-gray-200 font-semibold text-gray-800"><?= htmlspecialchars($product['name']) ?></td>
-                                    <td class="py-4 px-6 border-b border-gray-200 text-gray-600"><?= htmlspecialchars($product['category_name'] ?? 'Kategorisiz') ?></td>
-                                    <td class="py-4 px-6 border-b border-gray-200">
-                                        <span class="<?= $product['stock_quantity'] <= $product['min_stock_level'] ? 'text-red-600 font-bold' : 'text-brand-accent font-semibold' ?>">
-                                            <?= htmlspecialchars($product['stock_quantity']) ?>
-                                        </span>
-                                    </td>
-                                    <td class="py-4 px-6 border-b border-gray-200"><?= htmlspecialchars(number_format($product['price_sale'], 2)) ?> ₺</td>
-                                    <td class="py-4 px-6 border-b border-gray-200">
-                                        <a href="edit_product.php?id=<?= $product['id'] ?>" class="text-brand hover:text-brand-mid mr-2">Düzenle</a>
-                                        <a href="process_product.php?action=delete&id=<?= $product['id'] ?>" onclick="return confirm('Bu ürünü silmek istediğinize emin misiniz?');" class="text-red-500 hover:text-red-700">Sil</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
     </div>
 
-    <script>
-        document.getElementById('searchInput').addEventListener('keyup', function() {
-            let filter = this.value.toLowerCase();
-            let rows = document.querySelectorAll('tbody tr');
+    <!-- Low Stock -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
+        <div class="w-12 h-12 <?= $lowStock > 0 ? 'bg-red-100' : 'bg-green-100' ?> rounded-xl flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6 <?= $lowStock > 0 ? 'text-red-500' : 'text-green-500' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+        <div>
+            <p class="text-2xl font-bold <?= $lowStock > 0 ? 'text-red-600' : 'text-gray-800' ?>"><?= $lowStock ?></p>
+            <p class="text-sm text-gray-500">Low Stock Alerts</p>
+        </div>
+    </div>
 
-            rows.forEach(row => {
-                let cells = row.querySelectorAll('td');
-                if(cells.length > 1) { // Sadece veri satırlarını filtrele
-                    let sku = cells[0].innerText.toLowerCase();
-                    let name = cells[1].innerText.toLowerCase();
-                    let category = cells[2].innerText.toLowerCase();
-                    
-                    if (sku.includes(filter) || name.includes(filter) || category.includes(filter)) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                }
-            });
-        });
-    </script>
-</body>
-</html>
+    <!-- Today's Orders -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
+        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+            </svg>
+        </div>
+        <div>
+            <p class="text-2xl font-bold text-gray-800"><?= $todayOrders ?></p>
+            <p class="text-sm text-gray-500">Today's Orders</p>
+        </div>
+    </div>
+
+    <!-- Pending Orders -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
+        <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <div>
+            <p class="text-2xl font-bold text-gray-800"><?= $pendingOrders ?></p>
+            <p class="text-sm text-gray-500">Pending Orders</p>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom panels -->
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+    <!-- Recent Stock Movements -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h2 class="font-semibold text-gray-800 text-sm">Recent Stock Movements</h2>
+            <a href="stock_movements.php" class="text-xs text-brand hover:underline">View all</a>
+        </div>
+        <div class="divide-y divide-gray-50">
+            <?php if (empty($recentMovements)): ?>
+            <p class="text-center text-gray-400 text-sm py-8">No stock movements yet.</p>
+            <?php else: ?>
+            <?php foreach ($recentMovements as $mov): ?>
+            <?php
+                $badgeClass = match($mov['action_type']) {
+                    'IN'         => 'bg-green-100 text-green-700',
+                    'OUT'        => 'bg-red-100 text-red-700',
+                    'ADJUSTMENT' => 'bg-yellow-100 text-yellow-700',
+                    default      => 'bg-gray-100 text-gray-600',
+                };
+                $sign = $mov['action_type'] === 'IN' ? '+' : ($mov['action_type'] === 'OUT' ? '-' : '±');
+            ?>
+            <div class="flex items-center justify-between px-5 py-3">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-800 truncate"><?= htmlspecialchars($mov['product_name']) ?></p>
+                    <p class="text-xs text-gray-400"><?= htmlspecialchars($mov['sku']) ?> &bull; <?= htmlspecialchars($mov['user_name'] ?? 'System') ?></p>
+                </div>
+                <div class="flex items-center gap-3 shrink-0 ml-3">
+                    <span class="text-sm font-semibold <?= $mov['action_type'] === 'IN' ? 'text-green-600' : ($mov['action_type'] === 'OUT' ? 'text-red-600' : 'text-yellow-600') ?>">
+                        <?= $sign ?><?= abs($mov['change_amount']) ?>
+                    </span>
+                    <span class="text-xs px-2 py-0.5 rounded-full font-medium <?= $badgeClass ?>">
+                        <?= $mov['action_type'] ?>
+                    </span>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Low Stock Alerts -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h2 class="font-semibold text-gray-800 text-sm">Low Stock Alerts</h2>
+            <a href="products.php" class="text-xs text-brand hover:underline">View products</a>
+        </div>
+        <div class="divide-y divide-gray-50">
+            <?php if (empty($lowStockItems)): ?>
+            <div class="text-center py-8">
+                <svg class="w-8 h-8 text-green-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p class="text-gray-400 text-sm">All products are well-stocked.</p>
+            </div>
+            <?php else: ?>
+            <?php foreach ($lowStockItems as $item): ?>
+            <div class="flex items-center justify-between px-5 py-3">
+                <div>
+                    <p class="text-sm font-medium text-gray-800"><?= htmlspecialchars($item['name']) ?></p>
+                    <p class="text-xs text-gray-400"><?= htmlspecialchars($item['sku']) ?></p>
+                </div>
+                <div class="text-right shrink-0 ml-3">
+                    <p class="text-sm font-bold text-red-600"><?= $item['stock_quantity'] ?> left</p>
+                    <p class="text-xs text-gray-400">Min: <?= $item['min_stock_level'] ?></p>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+
+</div>
+
+<?php require_once __DIR__ . '/../src/layout/footer.php'; ?>
