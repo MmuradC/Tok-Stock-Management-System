@@ -23,6 +23,11 @@ services:
       dockerfile: docker/php/Dockerfile-fpm
     volumes:
       - ./dashboard:/var/www/html/dashboard
+    environment:
+      DB_HOST: mariadb
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
     networks:
       - backend_network
       - frontend_network
@@ -47,8 +52,8 @@ services:
     environment:
       - OWNCLOUD_DB_TYPE=mysql
       - OWNCLOUD_DB_NAME=owncloud_db
-      - OWNCLOUD_DB_USERNAME=${DB_USER}
-      - OWNCLOUD_DB_PASSWORD=${DB_PASSWORD}
+      - OWNCLOUD_DB_USERNAME=${OWNCLOUD_DB_USER}
+      - OWNCLOUD_DB_PASSWORD=${OWNCLOUD_DB_PASSWORD}
       - OWNCLOUD_DB_HOST=mariadb
       - OWNCLOUD_DOMAIN=cloud.firma.lan
     volumes:
@@ -64,8 +69,8 @@ services:
     image: devinsolutions/osticket:1.17.5
     environment:
       - MYSQL_HOST=mariadb
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_USER=${OSTICKET_DB_USER}
+      - MYSQL_PASSWORD=${OSTICKET_DB_PASSWORD}
       - MYSQL_DATABASE=osticket_db
       - INSTALL_SECRET=${OSTICKET_INSTALL_SECRET:-secret_placeholder}
     networks:
@@ -76,7 +81,6 @@ services:
 
   # Zen Cart (E-Commerce & Inventory)
   zencart:
-    # Vanilla PHP+Apache image as a base for ZenCart setup
     build:
       context: .
       dockerfile: docker/php/Dockerfile-apache
