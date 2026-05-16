@@ -54,6 +54,7 @@ $icons = [
         <?= sidebarLink('index.php', 'Dashboard', $icons['dashboard'], $currentPage, 'dashboard') ?>
         <?= sidebarLink('products.php', 'Products', $icons['products'], $currentPage, 'products') ?>
         <?= sidebarLink('stock_movements.php', 'Stock Movements', $icons['stock'], $currentPage, 'stock') ?>
+        <?= sidebarLink('orders.php', 'Orders', $icons['orders'], $currentPage, 'orders') ?>
 
         <?php if ($isAdmin): ?>
         <div class="pt-3">
