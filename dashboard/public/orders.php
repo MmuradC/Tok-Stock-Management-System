@@ -47,10 +47,17 @@ try {
     $stmt->execute();
     $orders = $stmt->fetchAll();
 
+    // Load companies for sysadmin dropdown
+    $companies = [];
+    if ($isSysAdmin) {
+        $cStmt = $db->query("SELECT id, name FROM companies ORDER BY name");
+        $companies = $cStmt->fetchAll();
+    }
+
     // Load products for new order form
     $prodSql = $companyId
         ? "SELECT id, sku, name, price_sale FROM products WHERE company_id = :cid ORDER BY name"
-        : "SELECT id, sku, name, price_sale FROM products ORDER BY name";
+        : "SELECT id, sku, name, price_sale, company_id FROM products ORDER BY name";
     $pStmt = $db->prepare($prodSql);
     if ($companyId) $pStmt->bindValue(':cid', $companyId, PDO::PARAM_INT);
     $pStmt->execute();
@@ -103,6 +110,20 @@ try {
     <h2 class="text-sm font-semibold text-gray-800 mb-4">Create New Order</h2>
     <form action="process_order.php" method="POST">
         <input type="hidden" name="action" value="create">
+
+        <?php if ($isSysAdmin): ?>
+        <div class="mb-4">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Company <span class="text-red-500">*</span></label>
+            <select name="company_id" id="companySelect" required onchange="filterProductsByCompany(this.value)"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
+                <option value="">— Select company —</option>
+                <?php foreach ($companies as $c): ?>
+                <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Customer Name <span class="text-red-500">*</span></label>
@@ -137,7 +158,8 @@ try {
                             class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
                         <option value="">— Select product —</option>
                         <?php foreach ($availableProducts as $p): ?>
-                        <option value="<?= $p['id'] ?>" data-price="<?= $p['price_sale'] ?>">
+                        <option value="<?= $p['id'] ?>" data-price="<?= $p['price_sale'] ?>"
+                                <?= $isSysAdmin ? 'data-company-id="' . $p['company_id'] . '"' : '' ?>>
                             <?= htmlspecialchars($p['sku'] . ' — ' . $p['name']) ?> (<?= number_format($p['price_sale'], 2) ?> ₺)
                         </option>
                         <?php endforeach; ?>
@@ -276,7 +298,7 @@ const productTemplate = `<div class="item-row flex items-center gap-2">
     <select name="product_id[]" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
         <option value="">— Select product —</option>
         <?php foreach ($availableProducts as $p): ?>
-        <option value="<?= $p['id'] ?>" data-price="<?= $p['price_sale'] ?>"><?= htmlspecialchars(addslashes($p['sku'] . ' — ' . $p['name'])) ?> (<?= number_format($p['price_sale'], 2) ?> ₺)</option>
+        <option value="<?= $p['id'] ?>" data-price="<?= $p['price_sale'] ?>" <?= $isSysAdmin ? 'data-company-id="' . $p['company_id'] . '"' : '' ?>><?= htmlspecialchars(addslashes($p['sku'] . ' — ' . $p['name'])) ?> (<?= number_format($p['price_sale'], 2) ?> ₺)</option>
         <?php endforeach; ?>
     </select>
     <input type="number" name="quantity[]" min="1" value="1" class="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" placeholder="Qty">
@@ -285,6 +307,22 @@ const productTemplate = `<div class="item-row flex items-center gap-2">
 
 function addItem() {
     document.getElementById('orderItems').insertAdjacentHTML('beforeend', productTemplate);
+    const companySelect = document.getElementById('companySelect');
+    if (companySelect) filterProductsByCompany(companySelect.value);
+}
+
+function filterProductsByCompany(companyId) {
+    document.querySelectorAll('select[name="product_id[]"]').forEach(function(sel) {
+        const current = sel.value;
+        sel.querySelectorAll('option[data-company-id]').forEach(function(opt) {
+            const match = !companyId || opt.dataset.companyId === companyId;
+            opt.hidden   = !match;
+            opt.disabled = !match;
+        });
+        if (current && sel.querySelector('option[value="' + current + '"]:not([hidden])') === null) {
+            sel.value = '';
+        }
+    });
 }
 </script>
 

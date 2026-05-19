@@ -1,2 +1,0 @@
-# Tok-Stock-Management-System
- 

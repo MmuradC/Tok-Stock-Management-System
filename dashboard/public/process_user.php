@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'change_role') {
         $id   = (int)($_POST['id'] ?? 0);
         $role = $_POST['role'] ?? '';
-        $validRoles = ['staff', 'company_admin', 'system_admin'];
+        $validRoles = ['staff', 'company_admin'];
 
         if (!$isSysAdmin || $id <= 0 || !in_array($role, $validRoles, true) || $id === (int)$currentUser['id']) {
             header('Location: users.php');
@@ -59,13 +59,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $role     = $_POST['role']          ?? 'staff';
         $cid      = !empty($_POST['company_id']) ? (int)$_POST['company_id'] : null;
 
+        // Prevent anyone from creating a system_admin
+        if ($role === 'system_admin') {
+            $role = 'staff';
+        }
+
         // Non-sysadmins can only create users for their own company
         if (!$isSysAdmin) {
-            $cid  = $companyId;
-            // Restrict role — company_admin cannot create system_admin
-            if ($role === 'system_admin') {
-                $role = 'company_admin';
-            }
+            $cid = $companyId;
         }
 
         // company required for every role except system_admin

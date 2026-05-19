@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/auth_check.php';
 
+use TokStock\AuthService;
 use TokStock\Database;
 
 $db     = Database::getConnection();
@@ -40,11 +41,10 @@ if ($action === 'create') {
         $db->beginTransaction();
 
         // Resolve company_id for the order
-        $orderCompanyId = $companyId;
-        if (!$orderCompanyId && !empty($items)) {
-            $s = $db->prepare("SELECT company_id FROM products WHERE id = :pid");
-            $s->execute([':pid' => $items[0]['product_id']]);
-            $orderCompanyId = (int)$s->fetchColumn();
+        if (AuthService::isSystemAdmin() && !empty($_POST['company_id'])) {
+            $orderCompanyId = (int)$_POST['company_id'];
+        } else {
+            $orderCompanyId = $companyId;
         }
         if (!$orderCompanyId) {
             throw new \RuntimeException('Could not determine company for this order.');
@@ -76,11 +76,19 @@ if ($action === 'create') {
         ]);
         $orderId = (int)$db->lastInsertId();
 
-        // Insert order items
+        // Insert order items, deduct stock, and log each movement
         if (!empty($items)) {
             $itemStmt = $db->prepare(
                 "INSERT INTO order_items (order_id, product_id, quantity, price_at_sale)
                  VALUES (:oid, :pid, :qty, :price)"
+            );
+            $stockStmt = $db->prepare(
+                "UPDATE products SET stock_quantity = stock_quantity - :qty
+                 WHERE id = :pid AND company_id = :cid"
+            );
+            $logStmt = $db->prepare(
+                "INSERT INTO stock_logs (company_id, product_id, change_amount, action_type, user_id, notes)
+                 VALUES (:cid, :pid, :qty, 'OUT', :uid, :notes)"
             );
             foreach ($items as $item) {
                 $itemStmt->execute([
@@ -88,6 +96,18 @@ if ($action === 'create') {
                     ':pid'   => $item['product_id'],
                     ':qty'   => $item['quantity'],
                     ':price' => $item['price_at_sale'],
+                ]);
+                $stockStmt->execute([
+                    ':qty' => $item['quantity'],
+                    ':pid' => $item['product_id'],
+                    ':cid' => $orderCompanyId,
+                ]);
+                $logStmt->execute([
+                    ':cid'   => $orderCompanyId,
+                    ':pid'   => $item['product_id'],
+                    ':qty'   => $item['quantity'],
+                    ':uid'   => $userId,
+                    ':notes' => 'Order #' . $orderId,
                 ]);
             }
         }
