@@ -26,6 +26,7 @@ MariaDB is isolated behind a private `backend_network` and is never reachable fr
 ## Requirements
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
+- Ubuntu Linux LTS 22.04
 - Git
 
 ---
