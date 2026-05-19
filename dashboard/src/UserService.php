@@ -26,7 +26,7 @@ class UserService {
     public function getAllUsers(): array {
         $stmt = $this->db->query(
             "SELECT u.id, u.name, u.email, u.role, u.is_active, u.created_at,
-                    c.name AS company_name
+                    u.company_id, c.name AS company_name
              FROM users u
              LEFT JOIN companies c ON u.company_id = c.id
              ORDER BY c.name ASC, u.name ASC"

@@ -142,7 +142,6 @@ $roleBadge = [
                                                 class="text-xs border border-gray-200 rounded-md px-1.5 py-1 bg-white text-gray-600 cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand">
                                             <option value="staff"         <?= $u['role'] === 'staff'         ? 'selected' : '' ?>>Staff</option>
                                             <option value="company_admin" <?= $u['role'] === 'company_admin' ? 'selected' : '' ?>>Co. Admin</option>
-                                            <option value="system_admin"  <?= $u['role'] === 'system_admin'  ? 'selected' : '' ?>>Sys. Admin</option>
                                         </select>
                                     </form>
                                     <?php endif; ?>
@@ -200,9 +199,6 @@ $roleBadge = [
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand">
                         <option value="staff">Staff</option>
                         <option value="company_admin">Company Admin</option>
-                        <?php if ($isSysAdmin): ?>
-                        <option value="system_admin">System Admin</option>
-                        <?php endif; ?>
                     </select>
                 </div>
 
